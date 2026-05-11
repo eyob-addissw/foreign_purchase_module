@@ -1,0 +1,23 @@
+<odoo>
+    <record id="sequence_foreign_lc_cad" model="ir.sequence">
+        <field name="name">LC/CAD Sequence</field>
+        <field name="code">foreign.lc_cad</field>
+        <field name="prefix">LC/</field>
+        <field name="padding">4</field>
+        <field name="number_next">10</field>
+        <field name="number_increment">1</field>
+        <field name="company_id" eval="False"/>
+        <field name="implementation">no_gap</field>
+    </record>
+    
+    <record id="sequence_foreign_shipment" model="ir.sequence">
+        <field name="name">Shipment Sequence</field>
+        <field name="code">foreign.shipment</field>
+        <field name="prefix">SHIP/</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+        <field name="company_id" eval="False"/>
+        <field name="implementation">no_gap</field>
+    </record>
+</odoo>

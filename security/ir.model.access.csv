@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_foreign_lc_cad,foreign.lc_cad,model_foreign_lc_cad,purchase.group_purchase_user,1,1,1,1
+access_foreign_lc_cad_cost,foreign.lc_cad.cost,model_foreign_lc_cad_cost,purchase.group_purchase_user,1,1,1,1
+access_foreign_lc_cad_cost_type,foreign.lc_cad.cost_type,model_foreign_lc_cad_cost_type,purchase.group_purchase_user,1,1,1,1
+access_foreign_lc_cad_product_line,foreign.lc_cad.product_line,model_foreign_lc_cad_product_line,purchase.group_purchase_user,1,1,1,1
+access_foreign_shipment,foreign.shipment,model_foreign_shipment,purchase.group_purchase_user,1,1,1,1
+access_foreign_shipment_cost,foreign.shipment.cost,model_foreign_shipment_cost,purchase.group_purchase_user,1,1,1,1
+access_foreign_shipment_product_line,foreign.shipment.product_line,model_foreign_shipment_product_line,purchase.group_purchase_user,1,1,1,1

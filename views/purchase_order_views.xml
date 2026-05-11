@@ -1,0 +1,41 @@
+<odoo>
+    <record id="purchase_order_form_inherit_foreign" model="ir.ui.view">
+        <field name="name">purchase.order.form.inherit.foreign</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="po_class" options="{'no_create': True}"/>
+            </xpath>
+            <xpath expr="//header" position="inside">
+                <button name="action_create_lc" string="Create LC" type="object" class="oe_highlight" invisible="po_class != 'foreign' or state != 'purchase' or lc_count &gt; 0"/>
+                <button name="action_create_grn_from_po" string="Create GRN" type="object" class="oe_highlight" invisible="not can_create_grn"/>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
+                <button name="action_view_lc" type="object" class="oe_stat_button" icon="fa-file-text" 
+                        invisible="lc_count == 0">
+                    <field name="lc_count" widget="statinfo" string="LC/CAD"/>
+                </button>
+                <button name="action_view_grn" type="object" class="oe_stat_button" icon="fa-truck" groups="base.group_user" 
+                        invisible="grn_count == 0">
+                    <field name="grn_count" widget="statinfo" string="GRN"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- <record id="purchase_order_view_search_inherit_foreign" model="ir.ui.view">
+        <name>purchase.order.view.search.inherit.foreign</name>
+        <model>purchase.order</model>
+        <inherit_id ref="purchase.view_purchase_order_filter"/>
+        <arch type="xml">
+            <xpath expr="//filter[@name='my_purchases']" position="after">
+                <filter string="Foreign Orders" name="foreign_orders" domain="[('po_class', '=', 'foreign')]"/>
+                <filter string="Domestic Orders" name="domestic_orders" domain="[('po_class', '=', 'domestic')]"/>
+            </xpath>
+            <xpath expr="//group" position="inside">
+                <filter string="PO Class" name="group_by_po_class" context="{'group_by': 'po_class'}"/>
+            </xpath>
+        </arch>
+    </record> -->
+</odoo>

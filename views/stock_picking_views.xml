@@ -1,0 +1,14 @@
+<odoo>
+    <!-- Inherit stock picking form view to add unit price and cost price to operations -->
+    <record id="view_picking_form_inherit_foreign" model="ir.ui.view">
+        <field name="name">stock.picking.form.inherit.foreign</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_uom']" position="after">
+                <field name="price_unit" string="Unit Price" readonly="1" optional="show"/>
+                <field name="inventory_cost" string="Cost Price" readonly="1" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
