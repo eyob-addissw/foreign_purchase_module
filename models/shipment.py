@@ -7,7 +7,7 @@ class ForeignShipment(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
     name = fields.Char(string='Shipment Ref', required=True, tracking=True)
-    lc_cad_id = fields.Many2one('foreign.lc_cad', string='LC/CAD', required=True, ondelete='cascade', tracking=True)
+    lc_cad_id = fields.Many2one('foreign.lc_cad', string='LC/CAD', required=True, ondelete='cascade', tracking=True, db_index=True)
     purchase_order_id = fields.Many2one(related='lc_cad_id.purchase_order_id', string='Purchase Order', readonly=True, store=True)
     
     state = fields.Selection([
@@ -16,7 +16,7 @@ class ForeignShipment(models.Model):
         ('customs_clearance', 'Customs Clearance'),
         ('arrived', 'Arrived'),
         ('completed', 'Completed')
-    ], string='Status', default='draft', tracking=True)
+    ], string='Status', default='draft', tracking=True, db_index=True)
     
     # Transportation details
     vessel_flight = fields.Char(string='Vessel/Flight Number', tracking=True)
@@ -40,9 +40,9 @@ class ForeignShipment(models.Model):
     # Computed fields
     currency_id = fields.Many2one(related='lc_cad_id.currency_id', store=True)
     total_costs = fields.Monetary(string='Total Costs', compute='_compute_total_costs', currency_field='currency_id')
-    can_receive_goods = fields.Boolean(string='Can Receive Goods', compute='_compute_can_receive_goods')
     can_create_grn = fields.Boolean(string='Can Create GRN', compute='_compute_can_create_grn', store=True)
     grn_count = fields.Integer(string='GRN Count', compute='_compute_grn_count', store=True)
+    landed_costs_computed = fields.Boolean(string='Landed Costs Computed', default=False, help="Indicates if landed costs have been calculated for this shipment")
 
     _sql_constraints = [
         ('name_unique', 'unique(name)', 'Shipment reference must be unique!')
@@ -50,9 +50,9 @@ class ForeignShipment(models.Model):
 
     @api.depends('product_line_ids.product_qty', 'cost_line_ids.amount')
     def _compute_landed_costs(self):
-        """Compute and store landed costs for all product lines"""
+        """Compute and store landed costs for all product lines - only once when shipment is completed"""
         for shipment in self:
-            if shipment.state == 'completed' and shipment.lc_cad_id:
+            if shipment.state == 'completed' and shipment.lc_cad_id and not shipment.landed_costs_computed:
                 shipment._calculate_landed_costs()
 
     def _calculate_landed_costs(self):
@@ -93,6 +93,8 @@ class ForeignShipment(models.Model):
                 'landed_unit_cost': landed_cost
             })
         
+        # Mark landed costs as computed
+        self.write({'landed_costs_computed': True})
         print("=== DEBUG: Landed costs calculation completed ===")
 
     def _get_total_lc_cost(self):
@@ -170,26 +172,7 @@ class ForeignShipment(models.Model):
             costs = sum(line.amount for line in record.cost_line_ids)
             record.total_costs = costs
 
-    @api.depends('state', 'cost_line_ids.vendor_bill_id.state', 'lc_cad_id.cost_line_ids.vendor_bill_id.state', 'goods_receipt_id')
-    def _compute_can_receive_goods(self):
-        for record in self:
-            if record.state != 'completed' or record.goods_receipt_id:
-                record.can_receive_goods = False
-                continue
-                
-            # Check shipment cost bills
-            all_shipment_bills_posted = all(
-                cost.vendor_bill_id and cost.vendor_bill_id.state == 'posted'
-                for cost in record.cost_line_ids
-            )
-            # Check LC cost bills
-            all_lc_bills_posted = all(
-                cost.vendor_bill_id and cost.vendor_bill_id.state == 'posted'
-                for cost in record.lc_cad_id.cost_line_ids
-            )
-            
-            record.can_receive_goods = all_shipment_bills_posted and all_lc_bills_posted
-
+    
     @api.depends('state', 'cost_line_ids.vendor_bill_id.state', 'lc_cad_id.cost_line_ids.vendor_bill_id.state', 'goods_receipt_id')
     def _compute_can_create_grn(self):
         for record in self:
@@ -252,22 +235,31 @@ class ForeignShipment(models.Model):
         if self.state != 'arrived':
             raise UserError(_("Shipment must be arrived to be marked as completed."))
         
-        # Check if all cost bills are posted
+        # Check if all shipment cost bills are posted
         unposted_bills = self.cost_line_ids.filtered(lambda line: not line.vendor_bill_id or line.vendor_bill_id.state != 'posted')
         if unposted_bills:
-            raise UserError(_("Shipment cannot be completed while there are unposted bills. Please post all vendor bills first."))
+            raise UserError(_("Shipment cannot be completed while there are unposted shipment bills. Please post all vendor bills first."))
+        
+        # Check if all LC cost bills are posted
+        if self.lc_cad_id:
+            unposted_lc_bills = self.lc_cad_id.cost_line_ids.filtered(lambda line: not line.vendor_bill_id or line.vendor_bill_id.state != 'posted')
+            if unposted_lc_bills:
+                raise UserError(_("Shipment cannot be completed while there are unposted LC bills. Please post all LC vendor bills first."))
         
         self.write({'state': 'completed'})
 
-    def action_receive_goods(self):
+    def action_create_grn(self):
         """Create goods receipt when shipment is completed and LC is closed"""
         self.ensure_one()
-        if not self.can_receive_goods:
+        if not self.can_create_grn:
             raise UserError(_("Goods can only be received when shipment is completed and all related bills are posted."))
         
-        # Calculate landed costs on-demand (like the report system)
-        print(f"=== DEBUG: GRN creation - triggering landed cost calculation for shipment {self.name} ===")
-        self._calculate_landed_costs()
+        # Calculate landed costs only if not already computed
+        if not self.landed_costs_computed:
+            print(f"=== DEBUG: GRN creation - triggering landed cost calculation for shipment {self.name} ===")
+            self._calculate_landed_costs()
+        else:
+            print(f"=== DEBUG: GRN creation - landed costs already computed for shipment {self.name} ===")
         
         # Create goods receipt (stock picking) based on PO order lines
         picking_vals = {
@@ -449,7 +441,7 @@ class ForeignShipmentCost(models.Model):
     _description = 'Shipment Cost'
 
     shipment_id = fields.Many2one('foreign.shipment', string='Shipment', required=True, ondelete='cascade')
-    cost_type_id = fields.Many2one('foreign.lc_cad.cost_type', string='Cost Type', required=True)
+    cost_type_id = fields.Many2one('foreign.lc_cad.cost_type', string='Cost Type', required=True, db_index=True)
     date = fields.Date(string='Date', default=fields.Date.today, required=True)
     name = fields.Char(string='Description', required=True)
     currency_id = fields.Many2one('res.currency', related='shipment_id.currency_id')
@@ -462,6 +454,16 @@ class ForeignShipmentCost(models.Model):
     def _onchange_cost_type_id(self):
         if self.cost_type_id:
             self.name = self.cost_type_id.name
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            # Check if shipment is completed
+            if vals.get('shipment_id'):
+                shipment = self.env['foreign.shipment'].browse(vals['shipment_id'])
+                if shipment.state == 'completed':
+                    raise UserError(_("Cannot add cost lines to a completed shipment."))
+        return super(ForeignShipmentCost, self).create(vals_list)
 
     def create_bill(self):
         self.ensure_one()
@@ -572,6 +574,10 @@ class ForeignShipmentCost(models.Model):
         for record in self:
             if record.vendor_bill_id and record.vendor_bill_id.state == 'posted':
                 raise UserError(_("Cannot delete a cost line with a posted vendor bill."))
+            
+            # Prevent deletion if GRN has been created for related shipment
+            if record.shipment_id.goods_receipt_id:
+                raise UserError(_("Cannot delete cost line after GRN creation. The landed costs have been finalized."))
         return super(ForeignShipmentCost, self).unlink()
 
 

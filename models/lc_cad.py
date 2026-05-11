@@ -14,7 +14,7 @@ class ForeignLCCAD(models.Model):
     
     purchase_order_id = fields.Many2one(
         'purchase.order', string='Purchase Order', required=True,
-        domain=[('po_class', '=', 'foreign')], tracking=True
+        domain=[('po_class', '=', 'foreign')], tracking=True, db_index=True
     )
     
     issuance_date = fields.Date(string='Issuance Date', required=True, tracking=True)
@@ -33,7 +33,7 @@ class ForeignLCCAD(models.Model):
         ('open', 'Open'),
         ('closed', 'Closed'),
         ('archived', 'Archived')
-    ], string='Status', default='draft', tracking=True)
+    ], string='Status', default='draft', tracking=True, db_index=True)
     
     no_further_shipments = fields.Boolean(string='No Further Shipments', tracking=True)
     
@@ -47,7 +47,6 @@ class ForeignLCCAD(models.Model):
     all_shipments_completed = fields.Boolean(string='All Shipments Completed', compute='_compute_all_shipments_completed')
     can_be_closed = fields.Boolean(string='Can be Closed', compute='_compute_can_be_closed')
     all_related_bills_posted = fields.Boolean(string='All Related Bills Posted', compute='_compute_all_related_bills_posted')
-    can_close_lc = fields.Boolean(string='Can Close LC', compute='_compute_can_close_lc')
     has_remaining_qty = fields.Boolean(string='Has Remaining Qty', compute='_compute_has_remaining_qty')
 
     _sql_constraints = [
@@ -113,11 +112,7 @@ class ForeignLCCAD(models.Model):
             
             record.all_related_bills_posted = lc_bills_posted and shipment_bills_posted
 
-    @api.depends('all_related_bills_posted', 'all_shipments_completed')
-    def _compute_can_close_lc(self):
-        for record in self:
-            record.can_close_lc = record.all_related_bills_posted and record.all_shipments_completed and record.state == 'open'
-
+    
     @api.depends('all_bills_paid', 'all_shipments_completed')
     def _compute_can_be_closed(self):
         for record in self:
@@ -126,18 +121,36 @@ class ForeignLCCAD(models.Model):
     @api.depends('product_line_ids.product_qty', 'shipment_ids.product_line_ids.product_qty')
     def _compute_has_remaining_qty(self):
         for record in self:
-            has_rem = False
-            for line in record.product_line_ids:
-                shipped = sum(
-                    sl.product_qty for sl in record.shipment_ids.mapped('product_line_ids')
-                    if sl.purchase_order_line_id.id == line.purchase_order_line_id.id
-                )
-                if line.product_qty > shipped:
-                    has_rem = True
-                    break
             # If there are no product lines at all, don't allow shipment creation
             if not record.product_line_ids:
-                has_rem = False
+                record.has_remaining_qty = False
+                continue
+            
+            # Pre-aggregate shipped quantities using SQL for performance
+            shipped_quantities = {}
+            if record.shipment_ids:
+                # Use SQL query to aggregate shipped quantities by PO line
+                self.env.cr.execute("""
+                    SELECT 
+                        spl.purchase_order_line_id,
+                        SUM(spl.product_qty) as shipped_qty
+                    FROM foreign_shipment_product_line spl
+                    JOIN foreign_shipment s ON spl.shipment_id = s.id
+                    WHERE s.lc_cad_id = %s
+                    GROUP BY spl.purchase_order_line_id
+                """, (record.id,))
+                shipped_results = self.env.cr.fetchall()
+                shipped_quantities = {row[0]: row[1] for row in shipped_results}
+                print(f"DEBUG: shipped_quantities from SQL: {shipped_quantities}")
+            
+            # Check if any product line has remaining quantity
+            has_rem = False
+            for line in record.product_line_ids:
+                shipped_qty = shipped_quantities.get(line.purchase_order_line_id.id, 0)
+                if line.product_qty > shipped_qty:
+                    has_rem = True
+                    break
+            
             record.has_remaining_qty = has_rem
 
     def unlink(self):
@@ -149,6 +162,30 @@ class ForeignLCCAD(models.Model):
         return super(ForeignLCCAD, self).unlink()
 
     def action_open(self):
+        """Open LC with comprehensive validation"""
+        self.ensure_one()
+        
+        # Validate expiry date is not in the past
+        if self.expiry_date and self.expiry_date < fields.Date.today():
+            raise UserError(_("Cannot open LC with expiry date in the past. Please update the expiry date."))
+        
+        # Validate beneficiary is not empty
+        if not self.beneficiary or not self.beneficiary.strip():
+            raise UserError(_("Cannot open LC without beneficiary. Please specify the beneficiary."))
+        
+        # Validate purchase order is confirmed
+        if not self.purchase_order_id or self.purchase_order_id.state != 'purchase':
+            raise UserError(_("Cannot open LC without a confirmed purchase order. Please confirm the purchase order first."))
+        
+        # Check for existing open LC for same PO
+        existing_open_lc = self.env['foreign.lc_cad'].search([
+            ('purchase_order_id', '=', self.purchase_order_id.id),
+            ('state', '=', 'open'),
+            ('id', '!=', self.id)
+        ], limit=1)
+        if existing_open_lc:
+            raise UserError(_("An open LC already exists for this purchase order: %s. Please close the existing LC first.") % existing_open_lc.name)
+        
         self.write({'state': 'open'})
 
     def action_close(self):
@@ -163,15 +200,7 @@ class ForeignLCCAD(models.Model):
             raise UserError(_("LC/CAD cannot be closed while there are unposted bills. Please post all vendor bills first."))
         
         self.write({'state': 'closed'})
-
-    def action_close_lc(self):
-        """Enhanced LC closing method that checks all related bills"""
-        if self.state != 'open':
-            raise UserError(_("Only open LC/CADs can be closed."))
-        if not self.can_close_lc:
-            raise UserError(_("LC/CAD cannot be closed. All shipments must be completed and all related bills (LC costs and shipment costs) must be posted."))
         
-        self.write({'state': 'closed'})
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -198,9 +227,27 @@ class ForeignLCCAD(models.Model):
         if self.state != 'open':
             raise UserError(_("Shipments can only be created when LC/CAD is in open state."))
         
-        # Create new shipment
+        # Create new shipment with proper sequence
+        shipment_name = self.env['ir.sequence'].next_by_code('foreign.shipment')
+        
+        # If sequence fails, create a fallback with correct format
+        if not shipment_name:
+            current_year = fields.Date.today().year
+            # Find the highest existing shipment number for this year
+            existing_shipments = self.env['foreign.shipment'].search([
+                ('name', 'like', f'SHIP/{current_year}/')
+            ], order='name desc', limit=1)
+            
+            if existing_shipments:
+                last_number = int(existing_shipments.name.split('/')[-1])
+                next_number = last_number + 1
+            else:
+                next_number = 1
+            
+            shipment_name = f'SHIP/{current_year}/{next_number:04d}'
+        
         shipment_vals = {
-            'name': self.env['ir.sequence'].next_by_code('foreign.shipment') or 'SHIP/%s' % self.name,
+            'name': shipment_name,
             'lc_cad_id': self.id,
         }
         shipment = self.env['foreign.shipment'].create(shipment_vals)
@@ -236,7 +283,7 @@ class ForeignLCCADCost(models.Model):
     _description = 'LC/CAD Cost'
 
     lc_cad_id = fields.Many2one('foreign.lc_cad', string='LC/CAD', required=True, ondelete='cascade')
-    cost_type_id = fields.Many2one('foreign.lc_cad.cost_type', string='Cost Type', required=True)
+    cost_type_id = fields.Many2one('foreign.lc_cad.cost_type', string='Cost Type', required=True, db_index=True)
     date = fields.Date(string='Date', default=fields.Date.today, required=True)
     name = fields.Char(string='Description', required=True)
     currency_id = fields.Many2one('res.currency', related='lc_cad_id.currency_id')
@@ -250,6 +297,17 @@ class ForeignLCCADCost(models.Model):
         if self.cost_type_id:
             self.name = self.cost_type_id.name
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            # Check if LC has completed shipments
+            if vals.get('lc_cad_id'):
+                lc_cad = self.env['foreign.lc_cad'].browse(vals['lc_cad_id'])
+                completed_shipments = lc_cad.shipment_ids.filtered(lambda s: s.state == 'completed')
+                if completed_shipments:
+                    raise UserError(_("Cannot add cost lines to an LC that has completed shipments."))
+        return super(ForeignLCCADCost, self).create(vals_list)
+
     def create_bill(self):
         """Create vendor bill for normal/tax cost types"""
         self.ensure_one()
@@ -259,43 +317,44 @@ class ForeignLCCADCost(models.Model):
         if self.is_adjustment:
             raise UserError(_("Cannot create bill for adjustment cost type. Use 'Create Journal' instead."))
         
-        if not self.cost_type_id.tax_account_id or not self.cost_type_id.adjustment_account_id:
-            raise UserError(_("Please configure both Tax and Adjustment accounts on the cost type."))
+        # Only validate tax account for tax cost types
+        if self.cost_type_id.is_tax and not self.cost_type_id.tax_account_id:
+            raise UserError(_("Please configure the Tax account on the cost type."))
 
         journal = self.env['account.journal'].search([('type', '=', 'general')], limit=1)
         if not journal:
             raise UserError(_("Please configure a General journal."))
 
-        move_vals = {
-            'move_type': 'entry',
-            'date': fields.Date.today(),
-            'journal_id': journal.id,
-            'ref': f"Adjustment: {self.name} ({self.lc_cad_id.name})",
-            'line_ids': [
-                (0, 0, {
-                    'name': f"{self.name} Adjustment",
-                    'account_id': self.cost_type_id.tax_account_id.id,
-                    'debit': self.amount,
-                    'credit': 0.0,
-                }),
-                (0, 0, {
-                    'name': f"{self.name} Adjustment",
-                    'account_id': self.cost_type_id.adjustment_account_id.id,
-                    'debit': 0.0,
-                    'credit': self.amount,
-                }),
-            ]
+        # Determine the invoice line account based on cost type
+        invoice_line = {
+            'name': self.name,
+            'quantity': 1,
+            'price_unit': self.amount,
         }
-        move = self.env['account.move'].create(move_vals)
-        move.action_post()
-        self.vendor_bill_id = move.id
+        
+        # Set account based on cost type
+        if self.cost_type_id.is_tax and self.cost_type_id.tax_account_id:
+            # Tax cost type - use configured tax account
+            invoice_line['account_id'] = self.cost_type_id.tax_account_id.id
+        # Standard cost type - use default account (no account_id specified, Odoo will use default)
+        # Adjustment cost types should not reach here (they use create_journal)
+            
+        # Create draft vendor bill
+        bill_vals = {
+            'move_type': 'in_invoice',
+            'partner_id': self.lc_cad_id.purchase_order_id.partner_id.id, # Default to PO partner, or user can change
+            'invoice_date': fields.Date.today(),
+            'invoice_line_ids': [(0, 0, invoice_line)],
+        }
+        bill = self.env['account.move'].create(bill_vals)
+        self.vendor_bill_id = bill
         
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
-            'res_id': move.id,
+            'res_id': bill.id,
             'view_mode': 'form',
-            'name': 'Journal Entry',
+            'name': 'Vendor Bill',
         }
     
     def action_view_journal(self):
@@ -334,6 +393,9 @@ class ForeignLCCADCost(models.Model):
         
         if not self.is_adjustment:
             raise UserError(_("Cannot create journal for non-adjustment cost type. Use 'Create Bill' instead."))
+        
+        if not self.cost_type_id.tax_account_id or not self.cost_type_id.adjustment_account_id:
+            raise UserError(_("Please configure both Tax/Expense and Adjustment accounts on the cost type."))
         
         # Create manual journal entry
         journal_entry_vals = {
@@ -383,6 +445,10 @@ class ForeignLCCADCost(models.Model):
         for record in self:
             if record.vendor_bill_id and record.vendor_bill_id.state == 'posted':
                 raise UserError(_("Cannot delete a cost line with a posted vendor bill."))
+            
+            # Prevent deletion if GRN has been created for related shipment
+            if record.lc_cad_id.shipment_ids.filtered('goods_receipt_id'):
+                raise UserError(_("Cannot delete cost line after GRN creation. The landed costs have been finalized."))
         return super(ForeignLCCADCost, self).unlink()
     
     

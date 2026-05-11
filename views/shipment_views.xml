@@ -24,7 +24,7 @@
                     <button name="action_customs_clearance" string="Customs Clearance" type="object" class="oe_highlight" invisible="state != 'in_transit'"/>
                     <button name="action_arrived" string="Arrived" type="object" class="oe_highlight" invisible="state != 'customs_clearance'"/>
                     <button name="action_completed" string="Completed" type="object" class="oe_highlight" invisible="state != 'arrived'"/>
-                    <button name="action_receive_goods" string="Receive Goods" type="object" class="oe_highlight" invisible="not can_receive_goods"/>
+                    <button name="action_create_grn" string="Receive Goods" type="object" class="oe_highlight" invisible="not can_create_grn"/>
                     <button name="action_cost_build_up" string="Cost Build Up" type="object" class="btn-secondary" invisible="state != 'completed'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,in_transit,customs_clearance,arrived,completed"/>
                 </header>

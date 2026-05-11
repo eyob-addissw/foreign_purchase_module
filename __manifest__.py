@@ -12,7 +12,8 @@
     'depends': ['purchase', 'account'],
     'data': [
         'security/ir.model.access.csv',
-        'data/sequence_data.xml',
+        'data/ir_sequence.xml',
+        # 'data/sequence_data.xml',
         'data/cost_type_data.xml',
         'views/purchase_order_views.xml',
         'views/cost_type_views.xml',

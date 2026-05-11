@@ -148,42 +148,8 @@ class PurchaseOrder(models.Model):
         _logger.info(f"Found {len(pickings)} pickings for PO {self.name} when viewing")
         return super(PurchaseOrder, self).action_view_picking()
 
-    def _generate_unique_lc_number(self):
-        """Generate a unique LC number by finding the next available sequence"""
-        prefix = "LC/"
-        padding = 4
         
-        # Get all existing LC numbers to find the highest used number
-        existing_lcs = self.env['foreign.lc_cad'].search([], order='name')
-        max_number = 0
-        
-        for lc in existing_lcs:
-            if lc.name and lc.name.startswith(prefix):
-                try:
-                    number_part = lc.name[len(prefix):]
-                    if number_part.isdigit():
-                        number = int(number_part)
-                        max_number = max(max_number, number)
-                except ValueError:
-                    continue
-        
-        # Start from the next number after the highest found
-        next_number = max(max_number + 1, 10)  # Ensure minimum of 10
-        
-        # Try using sequence first, fallback to manual calculation
-        try:
-            sequence_number = self.env['ir.sequence'].next_by_code('foreign.lc_cad')
-            if sequence_number:
-                # Verify this number doesn't already exist
-                existing = self.env['foreign.lc_cad'].search([('name', '=', sequence_number)], limit=1)
-                if not existing:
-                    return sequence_number
-        except:
-            pass
-        
-        # Fallback to manual generation
-        return f"{prefix}{str(next_number).zfill(padding)}"
-    
+            
     def action_create_lc(self):
         self.ensure_one()
         if self.po_class != 'foreign':
@@ -196,8 +162,25 @@ class PurchaseOrder(models.Model):
         if existing_lc:
             raise UserError(_("An LC/CAD already exists for this purchase order."))
         
-        # Create new LC/CAD with dynamic sequence handling
-        lc_name = self._generate_unique_lc_number()
+        # Create new LC/CAD with sequence
+        lc_name = self.env['ir.sequence'].next_by_code('foreign.lc_cad')
+        
+        # If sequence fails, create a fallback with correct format
+        if not lc_name:
+            current_year = fields.Date.today().year
+            # Find highest existing LC number for this year
+            existing_lcs = self.env['foreign.lc_cad'].search([
+                ('name', 'like', f'LC/{current_year}/')
+            ], order='name desc', limit=1)
+            
+            if existing_lcs:
+                last_number = int(existing_lcs.name.split('/')[-1])
+                next_number = last_number + 1
+            else:
+                next_number = 1
+            
+            lc_name = f'LC/{current_year}/{next_number:04d}'
+        
         lc_vals = {
             'name': lc_name,
             'purchase_order_id': self.id,

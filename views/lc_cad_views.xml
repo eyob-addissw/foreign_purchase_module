@@ -24,7 +24,7 @@
                 <header>
                     <button name="action_open" string="Open" type="object" class="oe_highlight" invisible="state != 'draft'"/>
                     <button name="action_create_shipment" string="Create Shipment" type="object" class="oe_highlight" invisible="state != 'open' or not has_remaining_qty"/>
-                    <button name="action_close_lc" string="Close LC" type="object" class="oe_highlight" invisible="not can_close_lc"/>
+                    <button name="action_close" string="Close LC" type="object" class="oe_highlight" invisible="not can_be_closed"/>
                     <button name="action_archive" string="Archive" type="object" invisible="state != 'closed'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,open,closed,archived"/>
                 </header>
