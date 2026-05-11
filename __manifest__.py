@@ -7,13 +7,14 @@
         This module extends Odoo Purchase to support Foreign/Import purchase workflows.
         - LC/CAD management
         - Cost accumulation at LC/CAD level
+        Website: www.swenetix.com
     """,
     'author': 'Swenetix Tech Plc',
+    'images': ['static/description/icon.jpg'],
     'depends': ['purchase', 'account'],
     'data': [
         'security/ir.model.access.csv',
         'data/ir_sequence.xml',
-        # 'data/sequence_data.xml',
         'data/cost_type_data.xml',
         'views/purchase_order_views.xml',
         'views/cost_type_views.xml',
