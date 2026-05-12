@@ -10,7 +10,9 @@
                 <field name="issuing_bank"/>
                 <field name="expiry_date"/>
                 <field name="total_value" widget="monetary"/>
+                <field name="currency_id" column_invisible="True"/>
                 <field name="total_costs" widget="monetary"/>
+                <field name="currency_id" column_invisible="True"/>
                 <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'open'"/>
             </list>
         </field>
@@ -62,7 +64,8 @@
                                     <field name="cost_type_id"/>
                                     <field name="name"/>
                                     <field name="date"/>
-                                    <field name="amount" widget="monetary"/>
+                                    <field name="amount" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                    <field name="currency_id" column_invisible="True"/>
                                     <field name="bill_state" widget="badge" decoration-info="bill_state == 'draft'" decoration-success="bill_state == 'posted'" invisible="not vendor_bill_id"/>
                                     <button name="create_bill" string="Create Bill" type="object" icon="fa-pencil-square-o" invisible="vendor_bill_id or is_adjustment"/>
                                     <button name="view_bill" string="View Bill" type="object" icon="fa-eye" invisible="not vendor_bill_id or is_adjustment"/>
@@ -71,7 +74,7 @@
                                 </list>
                             </field>
                             <group class="oe_subtotal_footer oe_right">
-                                <field name="total_costs" widget="monetary"/>
+                                <field name="total_costs" widget="monetary" options="{'currency_field': 'currency_id'}"/>
                             </group>
                         </page>
                         <page string="Product Lines" name="product_lines">
