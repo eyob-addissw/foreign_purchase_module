@@ -245,16 +245,34 @@ class CostBuildUpReport(models.AbstractModel):
         # PO total value
         po_total = sum(line.product_qty * line.price_unit for line in lc.product_line_ids)
         
-        # LC costs (vendor bills and adjustments)
+        # LC costs (vendor bills and adjustments) - exclude tax costs for landed cost calculation
         lc_costs = sum(line.amount for line in lc.cost_line_ids if line.vendor_bill_id and line.vendor_bill_id.state == 'posted' and not line.cost_type_id.is_tax)
+        
+        return po_total + lc_costs
+    
+    def _get_total_lc_cost_display(self, lc):
+        """
+        Calculate total LC cost for display (includes all costs including tax)
+        """
+        # PO total value
+        po_total = sum(line.product_qty * line.price_unit for line in lc.product_line_ids)
+        
+        # LC costs (vendor bills and adjustments) - include all costs for display
+        lc_costs = sum(line.amount for line in lc.cost_line_ids if line.vendor_bill_id and line.vendor_bill_id.state == 'posted')
         
         return po_total + lc_costs
     
     def _get_total_shipment_cost(self, shipment):
         """
-        Calculate total shipment cost
+        Calculate total shipment cost (exclude tax costs for landed cost calculation)
         """
         return sum(line.amount for line in shipment.cost_line_ids if line.vendor_bill_id and line.vendor_bill_id.state == 'posted' and not line.cost_type_id.is_tax)
+    
+    def _get_total_shipment_cost_display(self, shipment):
+        """
+        Calculate total shipment cost for display (includes all costs including tax)
+        """
+        return sum(line.amount for line in shipment.cost_line_ids if line.vendor_bill_id and line.vendor_bill_id.state == 'posted')
     
     def _calculate_grand_summary(self, lc, shipment):
         """
@@ -263,9 +281,16 @@ class CostBuildUpReport(models.AbstractModel):
         total_lc_cost = self._get_total_lc_cost(lc)
         total_shipment_cost = self._get_total_shipment_cost(shipment)
         
+        # For display, include all costs (including tax)
+        total_lc_cost_display = self._get_total_lc_cost_display(lc)
+        total_shipment_cost_display = self._get_total_shipment_cost_display(shipment)
+        
         return {
             'lc_cost': total_lc_cost,
             'current_shipment_cost': total_shipment_cost,
             'all_shipments_cost': total_shipment_cost,
             'total_cost': total_lc_cost + total_shipment_cost,
+            'lc_cost_display': total_lc_cost_display,
+            'current_shipment_cost_display': total_shipment_cost_display,
+            'total_cost_display': total_lc_cost_display + total_shipment_cost_display,
         }

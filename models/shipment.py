@@ -578,7 +578,20 @@ class ForeignShipmentCost(models.Model):
             # Prevent deletion if GRN has been created for related shipment
             if record.shipment_id.goods_receipt_id:
                 raise UserError(_("Cannot delete cost line after GRN creation. The landed costs have been finalized."))
+            
+            # Delete draft bill if exists
+            if record.vendor_bill_id and record.vendor_bill_id.state == 'draft':
+                record.vendor_bill_id.unlink()
         return super(ForeignShipmentCost, self).unlink()
+
+    def write(self, vals):
+        for record in self:
+            if record.vendor_bill_id and record.vendor_bill_id.state == 'posted':
+                # Allow only certain fields to be modified when bill is posted
+                allowed_fields = {'name'}  # Only allow description change
+                if any(field not in allowed_fields for field in vals.keys()):
+                    raise UserError(_("Cannot modify a cost line with a posted vendor bill. Only description can be changed."))
+        return super(ForeignShipmentCost, self).write(vals)
 
 
 
