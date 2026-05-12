@@ -17,15 +17,17 @@ class ForeignLCCAD(models.Model):
         domain=[('po_class', '=', 'foreign')], tracking=True, db_index=True
     )
     
+    company_id = fields.Many2one('res.company', related='purchase_order_id.company_id', store=True, readonly=True)
+    
     issuance_date = fields.Date(string='Issuance Date', required=True, tracking=True)
     expiry_date = fields.Date(string='Expiry Date', required=True, tracking=True)
     issuing_bank = fields.Char(string='Issuing Bank', tracking=True)
     beneficiary = fields.Char(string='Beneficiary', required=True, tracking=True)
     
-    currency_id = fields.Many2one('res.currency', related='purchase_order_id.currency_id', store=True)
+    currency_id = fields.Many2one('res.currency', related='company_id.currency_id', store=True, readonly=True)
     total_value = fields.Monetary(
         string='Total LC Value', currency_field='currency_id',
-        related='purchase_order_id.amount_total', store=True, readonly=True, tracking=True
+        compute='_compute_total_value', store=True, readonly=True, tracking=True
     )
     
     state = fields.Selection([
@@ -53,11 +55,25 @@ class ForeignLCCAD(models.Model):
         ('name_unique', 'unique(name)', 'The LC/CAD number must be unique!')
     ]
 
-    @api.depends('purchase_order_id.amount_total')
+    @api.depends('purchase_order_id.amount_total', 'purchase_order_id.currency_id', 'currency_id')
     def _compute_total_value(self):
         for record in self:
-            if record.purchase_order_id:
-                record.total_value = record.purchase_order_id.amount_total
+            if record.purchase_order_id and record.currency_id:
+                # Convert PO amount from PO currency to ETB (company currency)
+                po_currency = record.purchase_order_id.currency_id
+                company_currency = record.currency_id
+                po_amount = record.purchase_order_id.amount_total
+                
+                if po_currency != company_currency:
+                    # Convert using Odoo's currency conversion
+                    record.total_value = po_currency._convert(
+                        po_amount,
+                        company_currency,
+                        record.company_id,
+                        record.issuance_date or fields.Date.today()
+                    )
+                else:
+                    record.total_value = po_amount
             else:
                 record.total_value = 0.0
 
