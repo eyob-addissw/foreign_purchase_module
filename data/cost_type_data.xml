@@ -1,0 +1,41 @@
+<odoo>
+    <record id="cost_type_insurance" model="foreign.lc_cad.cost_type">
+        <field name="name">Insurance</field>
+        <field name="description">Insurance costs for the shipment</field>
+    </record>
+    
+    <record id="cost_type_transport" model="foreign.lc_cad.cost_type">
+        <field name="name">Transport</field>
+        <field name="description">Transportation costs</field>
+    </record>
+    
+    <record id="cost_type_bank_service" model="foreign.lc_cad.cost_type">
+        <field name="name">Bank Service Charge</field>
+        <field name="description">Bank service charges for LC/CAD processing</field>
+    </record>
+    
+    <record id="cost_type_customs" model="foreign.lc_cad.cost_type">
+        <field name="name">Customs Duty</field>
+        <field name="description">Customs and import duties</field>
+    </record>
+    
+    <record id="cost_type_forwarding" model="foreign.lc_cad.cost_type">
+        <field name="name">Freight Forwarding</field>
+        <field name="description">Freight forwarding charges</field>
+    </record>
+
+    <record id="cost_type_customs_duty_vat" model="foreign.lc_cad.cost_type">
+        <field name="name">Customs Duty VAT</field>
+        <field name="description">Customs Duty VAT</field>
+    </record>
+    
+    <record id="cost_type_customs_price_adjustment" model="foreign.lc_cad.cost_type">
+        <field name="name">Customs Price Adjustment</field>
+        <field name="description">Customs Price Adjustment</field>
+    </record>
+    
+    <record id="cost_type_other" model="foreign.lc_cad.cost_type">
+        <field name="name">Other</field>
+        <field name="description">Other miscellaneous costs</field>
+    </record>
+</odoo>

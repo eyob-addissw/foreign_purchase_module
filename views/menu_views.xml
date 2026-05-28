@@ -1,0 +1,29 @@
+<odoo>
+    <menuitem id="menu_foreign_purchase_root"
+              name="Foreign Purchase"
+              parent="purchase.menu_purchase_root"
+              sequence="15"/>
+
+    <menuitem id="menu_action_foreign_lc_cad"
+              name="LC/CAD"
+              parent="menu_foreign_purchase_root"
+              action="action_foreign_lc_cad"
+              sequence="10"/>
+
+    <menuitem id="menu_action_foreign_shipment"
+              name="Shipments"
+              parent="menu_foreign_purchase_root"
+              action="action_foreign_shipment"
+              sequence="12"/>
+
+    <menuitem id="menu_config_root"
+              name="Configuration"
+              parent="menu_foreign_purchase_root"
+              sequence="30"/>
+
+    <menuitem id="menu_action_foreign_cost_type"
+              name="Cost Types"
+              parent="menu_config_root"
+              action="action_foreign_lc_cad_cost_type"
+              sequence="10"/>
+</odoo>

@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_cost_build_up">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                
+                <div class="header" style="border-bottom: 2px solid #3e4c86; padding: 10px 5px;">
+                    <div class="row align-items-center">
+                        <div class="col-4">
+                            <img t-if="doc.env.company.logo" t-att-src="image_data_uri(doc.env.company.logo)" style="max-height: 120px;" alt="Logo"/>
+                        </div>
+                        <div class="col-4 text-center">
+                            <h2 style="color: #3e4c86; font-weight: bold; font-size: 24px; margin: 0;">Cost Build Up - <span t-field="doc.name"/> </h2>
+                        </div>
+                        <div class="col-4 text-end" style="font-size: 11px; color: #3e4c86; line-height: 1.2;">
+                            <div style="font-weight: bold;">Proforma No: <span t-field="doc.purchase_order_id.name"/></div>
+                            <div style="font-weight: bold;">LC No: <span t-field="doc.lc_cad_id.name"/></div>
+                            <div style="font-weight: bold;">Shipment No: <span t-field="doc.name"/></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="article" t-att-data-oe-model="doc._name" t-att-data-oe-id="doc.id">
+                    <div class="page">
+                        
+
+
+                        <!-- 1. Proforma Invoice Information -->
+                        <div style="margin-top: 5px; width: 100%; page-break-inside: avoid;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: center; color: #3e4c86;">
+                                1. Proforma Invoice Information (<t t-esc="po_currency_name"/>)
+                            </h4>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                                <thead>
+                                    <tr style="background-color: #3e4c86; color: white;">
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Product</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Quantity</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Unit Price (<t t-esc="po_currency_name"/>)</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total (<t t-esc="po_currency_name"/>)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="proforma_summary['lines']" t-as="line">
+                                        <tr>
+                                            <td style="border: 1px solid #ddd; padding: 8px;"><span t-esc="line['product_name']"/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;"><span t-esc="line['quantity']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="line['unit_price']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="line['subtotal']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                        </tr>
+                                    </t>
+                                    <tr style="font-weight: bold; background-color: #f2f2f2;">
+                                        <td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="proforma_summary['total_po_value']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 2. LC Associated Costs -->
+                        <div style="margin-top: 30px; width: 100%; page-break-inside: avoid;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: center; color: #3e4c86;">
+                                2. LC Associated Costs
+                            </h4>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                                <thead>
+                                    <tr style="background-color: #3e4c86; color: white;">
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Description</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Amount (Birr)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="border: 1px solid #ddd; padding: 8px;">Proforma Total Value</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                            <span t-esc="proforma_summary['total_po_value']" t-options='{"widget": "float", "precision": 2}'/>
+                                        </td>
+                                    </tr>
+                                    <t t-foreach="lc.cost_line_ids" t-as="cost">
+                                        <tr t-if="cost.vendor_bill_id.state == 'posted'">
+                                            <td style="border: 1px solid #ddd; padding: 8px;">
+                                                <span t-field="cost.name"/>
+                                                <t t-if="cost.cost_type_id.is_tax">
+                                                    <span style="color: #666; font-size: 0.9em; font-style: italic;"> (Tax)</span>
+                                                </t>
+                                            </td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                                <span t-field="cost.amount" t-options='{"widget": "float", "precision": 2}'/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                    <tr style="font-weight: bold; background-color: #f2f2f2;">
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total LC Cost (All Costs)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                            <span t-esc="grand_summary['lc_cost_display']" t-options='{"widget": "float", "precision": 2}'/>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 3. Shipment Associated Costs -->
+                        <div style="margin-top: 30px; width: 100%; page-break-inside: avoid;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: center; color: #3e4c86;">
+                                3. Shipment Associated Costs
+                            </h4>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                                <thead>
+                                    <tr style="background-color: #3e4c86; color: white;">
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Description</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Amount (Birr)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="doc.cost_line_ids" t-as="cost">
+                                        <tr t-if="cost.vendor_bill_id.state == 'posted'">
+                                            <td style="border: 1px solid #ddd; padding: 8px;">
+                                                <span t-field="cost.name"/>
+                                                <t t-if="cost.cost_type_id.is_tax">
+                                                    <span style="color: #666; font-size: 0.9em; font-style: italic;"> (Tax)</span>
+                                                </t>
+                                            </td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                                <span t-field="cost.amount" t-options='{"widget": "float", "precision": 2}'/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                    <tr style="font-weight: bold; background-color: #f2f2f2;">
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total Shipment Cost (All Costs)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                            <span t-esc="grand_summary['current_shipment_cost_display']" t-options='{"widget": "float", "precision": 2}'/>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 4. LLC Ratio Calculation -->
+                        <div style="margin-top: 30px; width: 100%; page-break-inside: avoid;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: center; color: #3e4c86;">
+                                4. LLC Ratio Calculation
+                            </h4>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                                <thead>
+                                    <tr style="background-color: #3e4c86; color: white;">
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Product</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">PO Total (<t t-esc="po_currency_name"/>)</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">LC Ratio (%)</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Unit LC Ratio (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="lc_ratios['lines']" t-as="line">
+                                        <tr>
+                                            <td style="border: 1px solid #ddd; padding: 8px;"><span t-esc="line['product_name']"/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="line['po_subtotal']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;"><span t-esc="line['lc_ratio_percent']" t-options='{"widget": "float", "precision": 2}'/>%</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: left;">
+                                                <span t-esc="line['unit_lc_ratio']" t-options='{"widget": "float", "precision": 2}'/>% 
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 5. Shipment Ratio Calculation -->
+                        <div style="margin-top: 30px; width: 100%; page-break-inside: avoid;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: center; color: #3e4c86;">
+                                5. Shipment Ratio Calculation
+                            </h4>
+                            
+                            <t t-foreach="shipments_data" t-as="ship_data">
+                                <div style="margin-top: 20px; page-break-inside: avoid;">
+                                    <h5 style="color: #3e4c86; font-weight: bold; margin-bottom: 10px; font-size: 14px; text-align: left;">
+                                        Shipment <span t-field="ship_data['shipment'].name"/>
+                                    </h5>
+                                    <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                                        <thead>
+                                            <tr style="background-color: #3e4c86; color: white;">
+                                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Product</th>
+                                                <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Qty</th>
+                                                <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Shipment Ratio (%) </th>
+                                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Unit Shipment Ratio (%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <t t-foreach="ship_data['lines']" t-as="line">
+                                                <tr>
+                                                    <td style="border: 1px solid #ddd; padding: 8px;"><span t-esc="line['product_name']"/></td>
+                                                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center;"><span t-esc="line['quantity']" t-options='{"widget": "float", "precision": 0}'/></td>
+                                                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center;"><span t-esc="line['shipment_percent']" t-options='{"widget": "float", "precision": 2}'/>%</td>
+                                                    <td style="border: 1px solid #ddd; padding: 8px; text-align: left;">
+                                                        <span t-esc="line['unit_shipment_ratio']" t-options='{"widget": "float", "precision": 2}'/>%
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
+                        </div>
+
+                        <!-- 6. Product Landed Cost Details -->
+                        <div style="margin-top: 30px; width: 100%; page-break-inside: avoid;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: center; color: #3e4c86;">
+                                6. Product Landed Cost Details
+                            </h4>
+                            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                                <thead>
+                                    <tr style="background-color: #3e4c86; color: white;">
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Product</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Shipped Qty</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Unit Price (<t t-esc="po_currency_name"/>)</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Unit Landed Cost (Birr)</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Total Cost (Birr)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="shipments_data[0]['lines']" t-as="line">
+                                        <tr>
+                                            <td style="border: 1px solid #ddd; padding: 8px;"><span t-esc="line['product_name']"/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center;"><span t-esc="line['quantity']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="line['unit_price']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;"><span t-esc="line['unit_cost']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="line['total_line_cost']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 7. Grand Summary -->
+                        <div style="margin-top: 40px; page-break-inside: avoid; width: 100%;">
+                            <h4 style="font-weight: bold; border-bottom: 2px solid #3e4c86; padding-bottom: 5px; margin-bottom: 10px; font-size: 16px; text-align: left; color: #3e4c86;">
+                                Grand Summary
+                            </h4>
+                            <table style="width: 50%; border-collapse: collapse; border: 1px solid #ddd; margin-left: 0; margin-right: auto;">
+                                <thead>
+                                    <tr style="background-color: #3e4c86; color: white;">
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Cost Component</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Amount (Birr)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="border: 1px solid #ddd; padding: 8px;">LLC Cost (All Costs)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;"><span t-esc="grand_summary['lc_cost_display']" t-options='{"widget": "float", "precision": 2}'/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: 1px solid #ddd; padding: 8px;">Shipment <span t-field="doc.name"/> (All Costs)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                            <span t-esc="grand_summary['current_shipment_cost_display']" t-options='{"widget": "float", "precision": 2}'/>
+                                        </td>
+                                    </tr>
+                                    <tr style="font-weight: bold; background-color: #f2f2f2;">
+                                        <td style="border: 1px solid #ddd; padding: 8px;">Grand Total (All Costs)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">
+                                            <span t-esc="grand_summary['total_cost_display']" t-options='{"widget": "float", "precision": 2}'/>
+                                        </td>
+                                    </tr>
+                                    <tr style="font-weight: bold; background-color: #e8f4fd;">
+                                        <td style="border: 1px solid #ddd; padding: 8px; font-size: 0.9em;">Total for Landed Calculation (Excl. Tax)</td>
+                                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 0.9em;">
+                                            <span t-esc="grand_summary['total_cost']" t-options='{"widget": "float", "precision": 2}'/>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </div> <!-- Close article -->
+
+                <div class="footer" style="border-top: 1px solid #ddd; font-size: 10px; padding-top: 5px;">
+                    <div class="row">
+                        <div class="col-2">
+                        </div>
+                        <div class="col-8 text-center">
+                            <div style="font-weight: bold; color: #3e4c86;" t-field="doc.env.company.name"/>
+                            <div>
+                                <span t-field="doc.env.company.street"/>, 
+                                <span t-field="doc.env.company.city"/>, 
+                                <span t-field="doc.env.company.zip"/>, 
+                                <span t-field="doc.env.company.phone"/>
+                            </div>
+                            <div t-field="doc.env.company.email"/>
+                        </div>
+                        <div class="col-2 text-end" style="padding-top: 20px;">
+                            Page: <span class="page"/> / <span class="topage"/>
+                        </div>
+                    </div>
+                </div>
+
+            </t>
+        </t>
+    </template>
+</odoo>

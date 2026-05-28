@@ -1,0 +1,141 @@
+<odoo>
+    <record id="view_foreign_shipment_tree" model="ir.ui.view">
+        <field name="name">foreign.shipment.list</field>
+        <field name="model">foreign.shipment</field>
+        <field name="arch" type="xml">
+            <list string="Shipments">
+                <field name="name"/>
+                <field name="lc_cad_id"/>
+                <field name="purchase_order_id"/>
+                <field name="estimated_arrival"/>
+                <field name="total_costs" widget="monetary"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-warning="state in ('in_transit', 'customs_clearance')" decoration-primary="state == 'arrived'" decoration-success="state == 'completed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_foreign_shipment_form" model="ir.ui.view">
+        <field name="name">foreign.shipment.form</field>
+        <field name="model">foreign.shipment</field>
+        <field name="arch" type="xml">
+            <form string="Shipment">
+                <header>
+                    <button name="action_in_transit" string="In Transit" type="object" class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_customs_clearance" string="Customs Clearance" type="object" class="oe_highlight" invisible="state != 'in_transit'"/>
+                    <button name="action_arrived" string="Arrived" type="object" class="oe_highlight" invisible="state != 'customs_clearance'"/>
+                    <button name="action_completed" string="Completed" type="object" class="oe_highlight" invisible="state != 'arrived'"/>
+                    <button name="action_create_grn" string="Receive Goods" type="object" class="oe_highlight" invisible="not can_create_grn"/>
+                    <button name="action_cost_build_up" string="Cost Build Up" type="object" class="btn-secondary" invisible="state != 'completed'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,in_transit,customs_clearance,arrived,completed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Shipment Reference"/>
+                        </h1>
+                    </div>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_grn" type="object" class="oe_stat_button" icon="fa-truck" groups="base.group_user" 
+                                invisible="grn_count == 0">
+                            <field name="grn_count" widget="statinfo" string="GRN"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="lc_cad_id" required="1"/>
+                            <field name="purchase_order_id" readonly="1"/>
+                            <field name="vessel_flight"/>
+                            <field name="bill_of_lading"/>
+                        </group>
+                        <group>
+                            <field name="port_of_loading"/>
+                            <field name="port_of_discharge"/>
+                            <field name="goods_receipt_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Costs" name="costs">
+                            <field name="cost_line_ids">
+                                <list editable="bottom">
+                                    
+                                    <field name="cost_type_id"/>
+                                    <field name="name"/>
+                                    <field name="date"/>
+                                    <field name="amount" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                    <field name="bill_state" widget="badge" decoration-info="bill_state == 'draft'" decoration-success="bill_state == 'posted'" invisible="not vendor_bill_id"/>
+                                    <button name="create_bill" string="Create Bill" type="object" icon="fa-pencil-square-o" invisible="vendor_bill_id or is_adjustment"/>
+                                    <button name="action_create_journal" string="Create Journal" type="object" icon="fa-pencil-square-o" invisible="vendor_bill_id or not is_adjustment"/>
+                                    <button name="view_bill" string="View Bill" type="object" icon="fa-eye" invisible="not vendor_bill_id or is_adjustment"/>
+                                    <button name="action_view_journal" string="View Journal" type="object" icon="fa-book" invisible="not vendor_bill_id or not is_adjustment"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="total_costs" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                            </group>
+                        </page>
+                        <page string="Product Lines" name="product_lines">
+                            <field name="product_line_ids">
+                                <list string="Product Lines" editable="bottom">
+                                    <field name="product_id"/>
+                                    <field name="name"/>
+                                    <field name="product_qty"/>
+                                    <field name="product_uom"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Schedule" name="schedule">
+                            <group>
+                                <group string="Departure">
+                                    <field name="estimated_departure"/>
+                                    <field name="actual_departure"/>
+                                </group>
+                                <group string="Arrival">
+                                    <field name="estimated_arrival"/>
+                                    <field name="actual_arrival"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_foreign_shipment_search" model="ir.ui.view">
+        <field name="name">foreign.shipment.search</field>
+        <field name="model">foreign.shipment</field>
+        <field name="arch" type="xml">
+            <search string="Search Shipments">
+                <field name="name"/>
+                <field name="lc_cad_id"/>
+                <field name="purchase_order_id"/>
+                <field name="vessel_flight"/>
+                <field name="bill_of_lading"/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="In Transit" name="in_transit" domain="[('state', '=', 'in_transit')]"/>
+                <filter string="Customs Clearance" name="customs_clearance" domain="[('state', '=', 'customs_clearance')]"/>
+                <filter string="Arrived" name="arrived" domain="[('state', '=', 'arrived')]"/>
+                <filter string="Completed" name="completed" domain="[('state', '=', 'completed')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Status" name="status" context="{'group_by': 'state'}"/>
+                    <filter string="LC/CAD" name="lc_cad" context="{'group_by': 'lc_cad_id'}"/>
+                    <filter string="Purchase Order" name="purchase_order" context="{'group_by': 'purchase_order_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_foreign_shipment" model="ir.actions.act_window">
+        <field name="name">Shipments</field>
+        <field name="res_model">foreign.shipment</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first shipment!
+            </p>
+        </field>
+    </record>
+</odoo>
