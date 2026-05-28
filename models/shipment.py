@@ -473,7 +473,7 @@ class ForeignShipmentCost(models.Model):
         if self.cost_type_id.is_adjustment:
             return self.action_create_journal()
 
-        # Determine the invoice line account
+        # Determine the invoice line account (cost type override / company default GIT)
         invoice_line = {
             'name': self.name,
             'quantity': 1,
@@ -481,6 +481,12 @@ class ForeignShipmentCost(models.Model):
         }
         if self.cost_type_id.is_tax and self.cost_type_id.tax_account_id:
             invoice_line['account_id'] = self.cost_type_id.tax_account_id.id
+        elif self.cost_type_id.git_account_id:
+            invoice_line['account_id'] = self.cost_type_id.git_account_id.id
+        else:
+            company_git = self.shipment_id.lc_cad_id.company_id.foreign_purchase_git_account_id
+            if self.shipment_id.purchase_order_id.po_class == 'foreign' and company_git:
+                invoice_line['account_id'] = company_git.id
             
         # Create draft vendor bill
         bill_vals = {

@@ -142,3 +142,28 @@ class StockMove(models.Model):
                 
         return svl_vals_list
 
+    def _is_foreign_incoming_receipt(self):
+        """True only for incoming pickings tied to a foreign PO line.
+
+        We use this to avoid changing accounting on deliveries/internal/MO flows.
+        """
+        self.ensure_one()
+        if not self.picking_id or self.picking_id.picking_type_code != 'incoming':
+            return False
+        if not self.purchase_line_id:
+            return False
+        return getattr(self.purchase_line_id.order_id, 'po_class', False) == 'foreign'
+
+    def _get_src_account(self, accounts_data):
+        """For foreign incoming receipts, credit the company GIT account instead of the default
+        stock interim received (stock input) account.
+
+        This makes the receipt clear the same interim account used by foreign vendor bills.
+        """
+        self.ensure_one()
+        if self._is_foreign_incoming_receipt():
+            git = self.company_id.foreign_purchase_git_account_id
+            if git:
+                return git.id
+        return super()._get_src_account(accounts_data)
+

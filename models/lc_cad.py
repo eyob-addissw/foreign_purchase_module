@@ -341,7 +341,7 @@ class ForeignLCCADCost(models.Model):
         if not journal:
             raise UserError(_("Please configure a General journal."))
 
-        # Determine the invoice line account based on cost type
+        # Determine the invoice line account based on cost type / company default GIT
         invoice_line = {
             'name': self.name,
             'quantity': 1,
@@ -352,7 +352,15 @@ class ForeignLCCADCost(models.Model):
         if self.cost_type_id.is_tax and self.cost_type_id.tax_account_id:
             # Tax cost type - use configured tax account
             invoice_line['account_id'] = self.cost_type_id.tax_account_id.id
-        # Standard cost type - use default account (no account_id specified, Odoo will use default)
+        elif self.cost_type_id.git_account_id:
+            # Cost-type override account
+            invoice_line['account_id'] = self.cost_type_id.git_account_id.id
+        else:
+            # For foreign POs, default to company-level GIT account (if configured)
+            company_git = self.lc_cad_id.company_id.foreign_purchase_git_account_id
+            if self.lc_cad_id.purchase_order_id.po_class == 'foreign' and company_git:
+                invoice_line['account_id'] = company_git.id
+        # Otherwise: leave unset and let Odoo choose the default account
         # Adjustment cost types should not reach here (they use create_journal)
             
         # Create draft vendor bill

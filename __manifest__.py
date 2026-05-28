@@ -11,7 +11,7 @@
     """,
     'author': 'Swenetix Tech Plc',
     'images': ['static/description/icon.jpg'],
-    'depends': ['purchase', 'account'],
+    'depends': ['purchase', 'account', 'stock_account'],
     'data': [
         'security/ir.model.access.csv',
         'data/ir_sequence.xml',
@@ -21,6 +21,7 @@
         'views/shipment_views.xml',
         'views/lc_cad_views.xml',
         'views/stock_picking_views.xml',
+        'views/res_company_views.xml',
         'views/menu_views.xml',
         'reports/cost_build_up_template.xml',
         'reports/cost_build_up_report.xml',
