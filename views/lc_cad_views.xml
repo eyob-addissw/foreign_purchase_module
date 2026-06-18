@@ -78,7 +78,7 @@
                             </group>
                         </page>
                         <page string="Product Lines" name="product_lines">
-                            <field name="product_line_ids">
+                            <field name="product_line_ids" readonly="1">
                                 <list string="Product Lines" editable="bottom">
                                     <field name="product_id"/>
                                     <field name="name"/>

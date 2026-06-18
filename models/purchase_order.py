@@ -226,6 +226,7 @@ class PurchaseOrder(models.Model):
 
         return super().button_cancel()
 
+
     def action_view_lc(self):
         self.ensure_one()
         action = self.env.ref('foreign_purchase_module.action_foreign_lc_cad').read()[0]
